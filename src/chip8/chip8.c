@@ -1,5 +1,7 @@
 #include <stdint.h>
-
+#include <stdio.h>
+#include <raylib.h>
+#include <string.h>
 typedef struct CHIP8
 {
 
@@ -22,3 +24,22 @@ typedef struct CHIP8
 } CHIP8;
 
 CHIP8 EmulatorState = {0};
+int RomSize = 0;
+
+int LoadGameIntoMemory(const char *fileName)
+{
+    unsigned char *fileData = LoadFileData(fileName, &RomSize);
+
+    if (fileData == NULL)
+    {
+        return 1;
+    }
+
+    //maybe check if romsize + 512 is bigger than memory.
+
+    memcpy(EmulatorState.memory + 512, fileData, RomSize);
+
+    UnloadFileData(fileData);
+
+    return 0;
+}
