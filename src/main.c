@@ -1,7 +1,5 @@
 #include <raylib.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <string.h>
 #include "resource_dir.h"
 #include "chip8.h"
 
@@ -15,12 +13,12 @@ int main()
 
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(WIDTH, HEIGHT, PROJNAME);
-	SetTargetFPS(75);
+	SetTargetFPS(60);
 	SearchAndSetResourceDir(RESOURCES_DIR);
 
 	int success = LoadGameIntoMemory("test_opcode.ch8");
 
-	//Failed to load rom file.
+	// Failed to load rom file.
 	if (success == 1)
 	{
 		return 1;
@@ -29,6 +27,8 @@ int main()
 	while (!WindowShouldClose())
 	{
 		BeginDrawing();
+
+		SimulateCycle();
 
 		ClearBackground(BLACK);
 

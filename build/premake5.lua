@@ -205,7 +205,10 @@ if (downloadRaylib) then
         filter{}
         
         includedirs { "../src" }
-        includedirs { "../include" }
+        includedirs { "../src/**" }
+        includedirs {"../include"}
+        includedirs { "../include/**" }
+        
 
         links {"raylib"}
 
