@@ -72,10 +72,15 @@ int main() {
 
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     InitWindow(WIDTH, HEIGHT, PROJNAME);
+
+    InitAudioDevice();
+
     SetTargetFPS(FPS);
     SearchAndSetResourceDir(RESOURCES_DIR);
 
-    int success = CHIP8_LoadGameIntoMemory("roms/pong.rom");
+    Sound beep = LoadSound("beep.wav");
+
+    int success = CHIP8_LoadGameIntoMemory("roms/tests/7-beep.ch8");
 
     // Failed to load rom file.
     if (success == -1) {
@@ -88,6 +93,12 @@ int main() {
         HandleInput();
 
         CHIP8_DecreaseTimers();
+
+        uint8_t soundTimer = CHIP8_GetSoundTimer();
+
+        if (soundTimer != 0 && !IsSoundPlaying(beep)) {
+            PlaySound(beep);
+        }
 
         for (int i = 0; i < CYCLE_MULTIPLIER; i++) {
             StepCycle();

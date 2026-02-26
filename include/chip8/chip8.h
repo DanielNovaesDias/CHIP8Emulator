@@ -1,7 +1,9 @@
 #pragma once
 
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+
 
 #define CHIP8_MEMORY_SIZE 4096
 #define CHIP8_SCREEN_WIDTH 64
@@ -23,3 +25,4 @@ CHIP_8GFX CHIP8_GetGFX();
 void CHIP8_SimulateCycle();
 void CHIP8_SetKey(size_t key, bool active);
 void CHIP8_DecreaseTimers();
+uint8_t CHIP8_GetSoundTimer();

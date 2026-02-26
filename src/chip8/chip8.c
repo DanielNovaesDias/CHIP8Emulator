@@ -56,6 +56,8 @@ void CHIP8_DecreaseTimers() {
     }
 }
 
+uint8_t CHIP8_GetSoundTimer() { return EmulatorState.sound_timer; }
+
 void SkipInstruction() { EmulatorState.pc_counter += 2; }
 
 CHIP8_INSTRUCTION FetchNextInstruction() {
