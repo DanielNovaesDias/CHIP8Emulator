@@ -1,4 +1,3 @@
-
 #include "chip8.h"
 #include <raylib.h>
 #include <stdbool.h>
@@ -10,7 +9,6 @@ typedef struct CHIP8 {
 
     uint8_t memory[CHIP8_MEMORY_SIZE];
     uint8_t v_register[CHIP8_REGISTERS];
-
     uint8_t key[CHIP8_INPUTS];
 
     CHIP_8GFX gfx;
@@ -35,10 +33,21 @@ typedef struct CHIP8_INSTRUCTION {
 CHIP8 EmulatorState = {0};
 int RomSize = 0;
 
+size_t CHIP8_GetKeyPressed() {
+    for (int i = 0; i < CHIP8_INPUTS; i++) {
+
+        if (EmulatorState.key[i]) {
+            return i;
+        }
+    }
+
+    return 0;
+}
+
 void SkipInstruction() { EmulatorState.pc_counter += 2; }
 
 CHIP8_INSTRUCTION FetchNextInstruction() {
-    if (EmulatorState.pc_counter + 1 > CHIP8_MEMORY_SIZE) {
+    if (EmulatorState.pc_counter + 1 >= CHIP8_MEMORY_SIZE) {
         return (CHIP8_INSTRUCTION){0, 0, false};
     }
 
@@ -58,10 +67,10 @@ void PushToStack(uint16_t NNN) {
     EmulatorState.stack_pointer += 1;
 }
 void PopStack() {
+    EmulatorState.stack_pointer -= 1;
     uint16_t stackAddress = EmulatorState.stack[EmulatorState.stack_pointer];
     JumpToNNN(stackAddress);
     EmulatorState.stack[EmulatorState.stack_pointer] = 0;
-    EmulatorState.stack_pointer -= 1;
 }
 
 void SetRegister(uint8_t x, uint8_t NN) { EmulatorState.v_register[x] = NN; };
@@ -108,6 +117,131 @@ void Handle0Code(uint8_t byte) {
         case 0xEE:
             PopStack();
             break;
+    }
+}
+
+void Handle8Code(uint8_t x, uint8_t y, uint8_t n_nibble) {
+    switch (n_nibble) {
+        case 0: {
+            uint8_t Vy = GetRegister(y);
+            SetRegister(x, Vy);
+            break;
+        }
+        case 1: {
+            uint8_t Vx = GetRegister(x);
+            uint8_t Vy = GetRegister(y);
+            SetRegister(x, Vx | Vy);
+            break;
+        }
+        case 2: {
+            uint8_t Vx = GetRegister(x);
+            uint8_t Vy = GetRegister(y);
+            SetRegister(x, Vx & Vy);
+            break;
+        }
+        case 3: {
+            uint8_t Vx = GetRegister(x);
+            uint8_t Vy = GetRegister(y);
+            SetRegister(x, Vx ^ Vy);
+            break;
+        }
+        case 4: {
+            uint8_t Vx = GetRegister(x);
+            uint8_t Vy = GetRegister(y);
+            uint16_t sum = Vx + Vy;
+            SetRegister(15, sum > 255 ? 1 : 0);
+            SetRegister(x, (uint8_t)sum);
+            break;
+        }
+        case 5: {
+            uint8_t Vx = GetRegister(x);
+            uint8_t Vy = GetRegister(y);
+
+            SetRegister(15, Vx >= Vy ? 1 : 0);
+            SetRegister(x, Vx - Vy);
+            break;
+        }
+
+        case 6: {
+            uint8_t Vx = GetRegister(x);
+            uint8_t leastSignificant = Vx & 0x01;
+            SetRegister(15, leastSignificant);
+            SetRegister(x, Vx >> 1);
+            break;
+        }
+        case 7: {
+            uint8_t Vx = GetRegister(x);
+            uint8_t Vy = GetRegister(y);
+
+            SetRegister(15, Vy >= Vx ? 1 : 0);
+            SetRegister(x, Vy - Vx);
+            break;
+        }
+        case 0xE: {
+            uint8_t Vx = GetRegister(x);
+            uint8_t mostSignificant = Vx & 0x80;
+            SetRegister(15, mostSignificant != 0);
+            SetRegister(x, Vx << 1);
+            break;
+        }
+    }
+}
+
+void HandleFCode(uint8_t x, uint8_t nn_nibble) {
+    switch (nn_nibble) {
+        case 0x07:
+            SetRegister(x, EmulatorState.delay_timer);
+            break;
+        case 0x0A: {
+            size_t keyPressed = CHIP8_GetKeyPressed();
+            if (keyPressed) {
+                SetRegister(x, keyPressed);
+            } else {
+                EmulatorState.pc_counter -= 2;
+            }
+            break;
+        }
+        case 0x15:
+            EmulatorState.delay_timer = GetRegister(x);
+            break;
+        case 0x18:
+            EmulatorState.sound_timer = GetRegister(x);
+            break;
+        case 0x1E:
+            EmulatorState.idx_register += GetRegister(x);
+            break;
+        case 0x29:
+            EmulatorState.idx_register =
+                GetRegister(x) * 5; // Each font is 5 bytes so 0 x 5 = 0 < start at memory index 0
+                                    // 1 * 5 = memory index 5;
+            break;
+        case 0x33: {
+            uint8_t Vx = GetRegister(x);
+            uint8_t firstDecimal = Vx / 100;
+            uint8_t secondDecimal = (Vx / 10) % 10;
+            uint8_t thirdDecimal = Vx % 10;
+            uint8_t idx = EmulatorState.idx_register;
+            EmulatorState.memory[idx] = firstDecimal;
+            EmulatorState.memory[idx + 1] = secondDecimal;
+            EmulatorState.memory[idx + 2] = thirdDecimal;
+            break;
+        }
+
+        case 0x55: {
+            // x Inclusive;
+            for (size_t i = 0; i <= x; i++) {
+                EmulatorState.memory[EmulatorState.idx_register + i] = GetRegister(i);
+            }
+            break;
+        }
+
+        case 0x65: {
+            // x Inclusive;
+            for (size_t i = 0; i <= x; i++) {
+                SetRegister(i, EmulatorState.memory[EmulatorState.idx_register + i]);
+            }
+            break;
+        }
     }
 }
 
@@ -167,6 +301,11 @@ void DecodeInstruction(CHIP8_INSTRUCTION instruction) {
             break;
         }
 
+        case 8: {
+            Handle8Code(x_nibble, y_nibble, n_nibble);
+            break;
+        }
+
         case 9: {
             uint8_t VxValue = GetRegister(x_nibble);
             uint8_t VyValue = GetRegister(y_nibble);
@@ -181,8 +320,12 @@ void DecodeInstruction(CHIP8_INSTRUCTION instruction) {
             break;
         case 0xB:
             EmulatorState.pc_counter = GetRegister(0) + second12bit;
+            break;
         case 0xD:
             Draw(x_nibble, y_nibble, n_nibble);
+            break;
+        case 0xF:
+            HandleFCode(x_nibble, nn_nibble);
             break;
     }
 }

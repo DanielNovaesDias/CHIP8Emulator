@@ -15,7 +15,7 @@ typedef enum {
     RUN_MODE_STEP,
 } RUN_MODE;
 
-RUN_MODE CurrentRunMode = RUN_MODE_STEP;
+RUN_MODE CurrentRunMode = RUN_MODE_NORMAL;
 
 void StepCycle() {
     switch (CurrentRunMode) {
@@ -58,7 +58,7 @@ int main() {
     SetTargetFPS(60);
     SearchAndSetResourceDir(RESOURCES_DIR);
 
-    int success = LoadGameIntoMemory("roms/pong.rom");
+    int success = LoadGameIntoMemory("roms/tests/3-corax+.ch8");
 
     // Failed to load rom file.
     if (success == 1) {
