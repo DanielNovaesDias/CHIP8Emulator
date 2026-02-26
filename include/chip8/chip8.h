@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdio.h>
 #include <stdbool.h>
 
 #define CHIP8_MEMORY_SIZE 4096
@@ -16,7 +17,9 @@ typedef struct CHIP_8GFX {
     bool data[CHIP8_SCREEN_WIDTH * CHIP8_SCREEN_HEIGHT];
 } CHIP_8GFX;
 
-int Convert2DTo1D(int x, int y, int x_max);
-int LoadGameIntoMemory(const char *fileName);
-CHIP_8GFX GetChipGFX();
-void SimulateCycle();
+int CHIP8_Convert2DTo1D(int x, int y, int x_max);
+int CHIP8_LoadGameIntoMemory(const char *fileName);
+CHIP_8GFX CHIP8_GetGFX();
+void CHIP8_SimulateCycle();
+void CHIP8_SetKey(size_t key, bool active);
+void CHIP8_DecreaseTimers();

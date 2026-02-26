@@ -9,6 +9,8 @@
 #define RESOURCES_DIR "resources"
 
 #define SCALE 10
+#define FPS 60
+#define CYCLE_MULTIPLIER (FPS / 6) // 30 * 60 =
 
 typedef enum {
     RUN_MODE_NORMAL,
@@ -20,17 +22,32 @@ RUN_MODE CurrentRunMode = RUN_MODE_NORMAL;
 void StepCycle() {
     switch (CurrentRunMode) {
         case RUN_MODE_NORMAL:
-            SimulateCycle();
+            CHIP8_SimulateCycle();
             break;
         case RUN_MODE_STEP:
             bool HasPressedStepKey = IsKeyPressed(KEY_K);
             if (HasPressedStepKey)
-                SimulateCycle();
+                CHIP8_SimulateCycle();
+    }
+}
+
+void HandleInput() {
+    bool pressedKeys[CHIP8_INPUTS] = {IsKeyDown(KEY_X),     IsKeyDown(KEY_ONE), IsKeyDown(KEY_TWO),
+                                      IsKeyDown(KEY_THREE), IsKeyDown(KEY_Q),   IsKeyDown(KEY_W),
+                                      IsKeyDown(KEY_E),     IsKeyDown(KEY_A),   IsKeyDown(KEY_S),
+                                      IsKeyDown(KEY_D),     IsKeyDown(KEY_Z),   IsKeyDown(KEY_C),
+                                      IsKeyDown(KEY_FOUR),  IsKeyDown(KEY_R),   IsKeyDown(KEY_F),
+                                      IsKeyDown(KEY_V)
+
+    };
+
+    for (size_t i = 0; i < CHIP8_INPUTS; i++) {
+        CHIP8_SetKey(i, pressedKeys[i]);
     }
 }
 
 void DrawScaled() {
-    CHIP_8GFX gfx = GetChipGFX();
+    CHIP_8GFX gfx = CHIP8_GetGFX();
 
     int scaledWidth = CHIP8_SCREEN_WIDTH * SCALE;
     int scaledHeight = CHIP8_SCREEN_HEIGHT * SCALE;
@@ -42,7 +59,7 @@ void DrawScaled() {
 
         for (int y = 0; y < CHIP8_SCREEN_HEIGHT; y++) {
 
-            int screenIndex = Convert2DTo1D(x, y, CHIP8_SCREEN_WIDTH);
+            int screenIndex = CHIP8_Convert2DTo1D(x, y, CHIP8_SCREEN_WIDTH);
 
             if (gfx.data[screenIndex]) {
                 DrawRectangle(offsetX + (x * SCALE), offsetY + (y * SCALE), SCALE, SCALE, WHITE);
@@ -55,20 +72,26 @@ int main() {
 
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     InitWindow(WIDTH, HEIGHT, PROJNAME);
-    SetTargetFPS(60);
+    SetTargetFPS(FPS);
     SearchAndSetResourceDir(RESOURCES_DIR);
 
-    int success = LoadGameIntoMemory("roms/tests/3-corax+.ch8");
+    int success = CHIP8_LoadGameIntoMemory("roms/pong.rom");
 
     // Failed to load rom file.
-    if (success == 1) {
+    if (success == -1) {
         return 1;
     }
 
     while (!WindowShouldClose()) {
         BeginDrawing();
 
-        StepCycle();
+        HandleInput();
+
+        CHIP8_DecreaseTimers();
+
+        for (int i = 0; i < CYCLE_MULTIPLIER; i++) {
+            StepCycle();
+        }
 
         ClearBackground(BLACK);
 

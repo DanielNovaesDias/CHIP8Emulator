@@ -9,7 +9,7 @@ typedef struct CHIP8 {
 
     uint8_t memory[CHIP8_MEMORY_SIZE];
     uint8_t v_register[CHIP8_REGISTERS];
-    uint8_t key[CHIP8_INPUTS];
+    bool keys[CHIP8_INPUTS];
 
     CHIP_8GFX gfx;
     uint8_t delay_timer;
@@ -33,15 +33,27 @@ typedef struct CHIP8_INSTRUCTION {
 CHIP8 EmulatorState = {0};
 int RomSize = 0;
 
-size_t CHIP8_GetKeyPressed() {
+void CHIP8_SetKey(size_t key, bool active) { EmulatorState.keys[key] = active; }
+
+int CHIP8_GetKeyPressed() {
     for (int i = 0; i < CHIP8_INPUTS; i++) {
 
-        if (EmulatorState.key[i]) {
+        if (EmulatorState.keys[i]) {
             return i;
         }
     }
 
-    return 0;
+    return -1;
+}
+
+void CHIP8_DecreaseTimers() {
+    if (EmulatorState.delay_timer > 0) {
+        EmulatorState.delay_timer -= 1;
+    }
+
+    if (EmulatorState.sound_timer > 0) {
+        EmulatorState.sound_timer -= 1;
+    }
 }
 
 void SkipInstruction() { EmulatorState.pc_counter += 2; }
@@ -97,7 +109,7 @@ void Draw(uint8_t X, uint8_t Y, uint8_t N) {
             uint16_t y = (Vy + h) % CHIP8_SCREEN_HEIGHT;
 
             // since gfx is one dimensional;
-            uint16_t screenIndex = Convert2DTo1D(x, y, CHIP8_SCREEN_WIDTH);
+            uint16_t screenIndex = CHIP8_Convert2DTo1D(x, y, CHIP8_SCREEN_WIDTH);
 
             if (EmulatorState.gfx.data[screenIndex] == 1) {
                 SetRegister(15, 1);
@@ -149,39 +161,37 @@ void Handle8Code(uint8_t x, uint8_t y, uint8_t n_nibble) {
             uint8_t Vx = GetRegister(x);
             uint8_t Vy = GetRegister(y);
             uint16_t sum = Vx + Vy;
-            SetRegister(15, sum > 255 ? 1 : 0);
             SetRegister(x, (uint8_t)sum);
+            SetRegister(15, sum > 255 ? 1 : 0);
             break;
         }
         case 5: {
             uint8_t Vx = GetRegister(x);
             uint8_t Vy = GetRegister(y);
-
-            SetRegister(15, Vx >= Vy ? 1 : 0);
             SetRegister(x, Vx - Vy);
+            SetRegister(15, Vx >= Vy ? 1 : 0);
+
             break;
         }
-
         case 6: {
             uint8_t Vx = GetRegister(x);
             uint8_t leastSignificant = Vx & 0x01;
-            SetRegister(15, leastSignificant);
             SetRegister(x, Vx >> 1);
+            SetRegister(15, leastSignificant);
             break;
         }
         case 7: {
             uint8_t Vx = GetRegister(x);
             uint8_t Vy = GetRegister(y);
-
-            SetRegister(15, Vy >= Vx ? 1 : 0);
             SetRegister(x, Vy - Vx);
+            SetRegister(15, Vy >= Vx ? 1 : 0);
             break;
         }
         case 0xE: {
             uint8_t Vx = GetRegister(x);
             uint8_t mostSignificant = Vx & 0x80;
-            SetRegister(15, mostSignificant != 0);
             SetRegister(x, Vx << 1);
+            SetRegister(15, mostSignificant != 0);
             break;
         }
     }
@@ -193,8 +203,8 @@ void HandleFCode(uint8_t x, uint8_t nn_nibble) {
             SetRegister(x, EmulatorState.delay_timer);
             break;
         case 0x0A: {
-            size_t keyPressed = CHIP8_GetKeyPressed();
-            if (keyPressed) {
+            int keyPressed = CHIP8_GetKeyPressed();
+            if (keyPressed != -1) {
                 SetRegister(x, keyPressed);
             } else {
                 EmulatorState.pc_counter -= 2;
@@ -220,7 +230,7 @@ void HandleFCode(uint8_t x, uint8_t nn_nibble) {
             uint8_t firstDecimal = Vx / 100;
             uint8_t secondDecimal = (Vx / 10) % 10;
             uint8_t thirdDecimal = Vx % 10;
-            uint8_t idx = EmulatorState.idx_register;
+            uint16_t idx = EmulatorState.idx_register;
             EmulatorState.memory[idx] = firstDecimal;
             EmulatorState.memory[idx + 1] = secondDecimal;
             EmulatorState.memory[idx + 2] = thirdDecimal;
@@ -240,6 +250,29 @@ void HandleFCode(uint8_t x, uint8_t nn_nibble) {
             for (size_t i = 0; i <= x; i++) {
                 SetRegister(i, EmulatorState.memory[EmulatorState.idx_register + i]);
             }
+            break;
+        }
+    }
+}
+
+void HandleECode(uint8_t x, uint8_t nn_nibble) {
+    switch (nn_nibble) {
+        case 0x9E: {
+            uint8_t key = GetRegister(x);
+
+            if (EmulatorState.keys[key]) {
+                SkipInstruction();
+            }
+
+            break;
+        }
+        case 0xA1: {
+            uint8_t key = GetRegister(x);
+
+            if (!EmulatorState.keys[key]) {
+                SkipInstruction();
+            }
+
             break;
         }
     }
@@ -321,8 +354,16 @@ void DecodeInstruction(CHIP8_INSTRUCTION instruction) {
         case 0xB:
             EmulatorState.pc_counter = GetRegister(0) + second12bit;
             break;
+        case 0xC: {
+            int randomValue = GetRandomValue(0, 255);
+            SetRegister(x_nibble, randomValue & nn_nibble);
+            break;
+        }
         case 0xD:
             Draw(x_nibble, y_nibble, n_nibble);
+            break;
+        case 0xE:
+            HandleECode(x_nibble, nn_nibble);
             break;
         case 0xF:
             HandleFCode(x_nibble, nn_nibble);
@@ -330,7 +371,7 @@ void DecodeInstruction(CHIP8_INSTRUCTION instruction) {
     }
 }
 
-int Convert2DTo1D(int x, int y, int x_max) { return y * x_max + x; }
+int CHIP8_Convert2DTo1D(int x, int y, int x_max) { return y * x_max + x; }
 
 void LoadFontDataChip8() {
     uint8_t fontData[80] = {
@@ -355,13 +396,13 @@ void LoadFontDataChip8() {
     memcpy(EmulatorState.memory, fontData, sizeof(fontData));
 }
 
-CHIP_8GFX GetChipGFX() { return EmulatorState.gfx; }
+CHIP_8GFX CHIP8_GetGFX() { return EmulatorState.gfx; }
 
-int LoadGameIntoMemory(const char* fileName) {
+int CHIP8_LoadGameIntoMemory(const char* fileName) {
     unsigned char* fileData = LoadFileData(fileName, &RomSize);
 
     if (fileData == NULL) {
-        return 1;
+        return -1;
     }
 
     // maybe check if romsize + 512 is bigger than memory.
@@ -377,14 +418,12 @@ int LoadGameIntoMemory(const char* fileName) {
     return 0;
 }
 
-void SimulateCycle() {
+void CHIP8_SimulateCycle() {
     CHIP8_INSTRUCTION NextInstruction = FetchNextInstruction();
 
     if (!NextInstruction.isValid) {
         return;
     }
-
-    printf("first byte: %x, second byte: %x\n ", NextInstruction.byte1, NextInstruction.byte2);
 
     DecodeInstruction(NextInstruction);
 }
