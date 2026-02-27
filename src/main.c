@@ -2,6 +2,12 @@
 #include "resource_dir.h"
 #include <raylib.h>
 #include <stddef.h>
+#include <stdlib.h>
+
+#define RAYGUI_IMPLEMENTATION
+#include "raygui.h"
+
+#undef RAYGUI_IMPLEMENTATION
 
 #define WIDTH 1280
 #define HEIGHT 800
@@ -16,6 +22,12 @@ typedef enum {
     RUN_MODE_NORMAL,
     RUN_MODE_STEP,
 } RUN_MODE;
+
+typedef struct ButtonStates {
+    bool loadFilePressed;
+    bool romPickerOpen;
+    char* selectedFilePath;
+} ButtonStates;
 
 RUN_MODE CurrentRunMode = RUN_MODE_NORMAL;
 
@@ -68,6 +80,57 @@ void DrawScaled() {
     }
 }
 
+void buildRomPicker(ButtonStates* state) {
+    float PanelWidth = 600;
+    float PanelHeight = 300;
+
+    float PanelAnchorX = (WIDTH - PanelWidth) / 2;
+    float PanelAnchorY = (HEIGHT - PanelHeight) / 2;
+
+    GuiPanel((Rectangle){PanelAnchorX, PanelAnchorY, PanelWidth, PanelHeight}, "Pick a ROM");
+
+    FilePathList ROMS =
+        LoadDirectoryFilesEx(TextFormat("%s/roms", GetWorkingDirectory()), "FILES*", false);
+
+    int* buttons = (int*)malloc(sizeof(int) * ROMS.count);
+
+    for (int i = 0; i < ROMS.count; i++) {
+        buttons[i] =
+            GuiButton((Rectangle){PanelAnchorX + 10, PanelAnchorY + (30 * (i + 1)), 100, 20},
+                      GetFileName(ROMS.paths[i]));
+    }
+
+    for (int i = 0; i < ROMS.count; i++) {
+        if (buttons[i]) {
+            state->selectedFilePath = ROMS.paths[i];
+        }
+    }
+
+    free(buttons);
+}
+
+void buildUI(ButtonStates* state) {
+    state->loadFilePressed = GuiButton((Rectangle){12, 8, 24, 24}, "#8#");
+
+    if (state->romPickerOpen) {
+        buildRomPicker(state);
+    }
+}
+
+void handleUI(ButtonStates* state) {
+    if (state->loadFilePressed) {
+        state->romPickerOpen = true;
+    }
+
+    if (state->selectedFilePath != NULL) {
+        state->romPickerOpen = false;
+
+        CHIP8_LoadGameIntoMemory(state->selectedFilePath);
+
+        state->selectedFilePath = NULL;
+    }
+}
+
 int main() {
 
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
@@ -80,33 +143,45 @@ int main() {
 
     Sound beep = LoadSound("beep.wav");
 
-    int success = CHIP8_LoadGameIntoMemory("roms/tests/7-beep.ch8");
+    ButtonStates state = {0};
+
+    bool isGameLoaded = false;
+
+    int success = CHIP8_LoadGameIntoMemory("roms/tests/1-chip8-logo.ch8");
 
     // Failed to load rom file.
     if (success == -1) {
         return 1;
+    } else {
+        isGameLoaded = true;
     }
 
     while (!WindowShouldClose()) {
         BeginDrawing();
 
-        HandleInput();
+        handleUI(&state);
 
-        CHIP8_DecreaseTimers();
+        if (isGameLoaded) {
+            HandleInput();
 
-        uint8_t soundTimer = CHIP8_GetSoundTimer();
+            CHIP8_DecreaseTimers();
 
-        if (soundTimer != 0 && !IsSoundPlaying(beep)) {
-            PlaySound(beep);
-        }
+            uint8_t soundTimer = CHIP8_GetSoundTimer();
 
-        for (int i = 0; i < CYCLE_MULTIPLIER; i++) {
-            StepCycle();
+            if (soundTimer != 0 && !IsSoundPlaying(beep)) {
+                PlaySound(beep);
+            }
+
+            for (int i = 0; i < CYCLE_MULTIPLIER; i++) {
+                StepCycle();
+            }
         }
 
         ClearBackground(BLACK);
 
         DrawScaled();
+
+        buildUI(&state);
 
         EndDrawing();
     }

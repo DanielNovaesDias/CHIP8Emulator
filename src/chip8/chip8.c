@@ -401,6 +401,11 @@ void LoadFontDataChip8() {
 CHIP_8GFX CHIP8_GetGFX() { return EmulatorState.gfx; }
 
 int CHIP8_LoadGameIntoMemory(const char* fileName) {
+
+    EmulatorState.gfx = (CHIP_8GFX){0};
+
+    printf("%s", fileName);
+
     unsigned char* fileData = LoadFileData(fileName, &RomSize);
 
     if (fileData == NULL) {
